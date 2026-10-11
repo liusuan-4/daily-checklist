@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="每日打卡">
+<meta name="theme-color" content="#121212">
+<title>每日打卡清单</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  background:#121212;
+  color:#ffffff;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+}
+main{max-width:680px;margin:0 auto;padding:22px 0 40px;}
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+.eyebrow{font-size:12px;color:#aaaaaa;letter-spacing:.08em;}
+h1{font-size:26px;margin:4px 0 6px;}
+.date{color:#aaaaaa;font-size:14px;}
+
+.progress-card,.group,.actions{
+  background:#1e1e1e;
+  border:1px solid #333333;
+  border-radius:18px;
+  padding:16px;
+  margin-top:14px;
+}
+.progress-line{
+  height:8px;
+  background:#2c2c2c;
+  border-radius:99px;
+  overflow:hidden;
+  margin:12px 0 6px;
+}
+.progress-fill{
+  height:100%;
+  width:0%;
+  background:#5b7cf7;
+  border-radius:99px;
+  transition:width .25s;
+}
+.progress-row{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.progress-num{font-weight:700;font-size:19px;}
+.small{font-size:12px;color:#aaaaaa;}
+
+.group-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.group h2{font-size:16px;margin:0;}
+.time{font-size:12px;color:#aaaaaa;white-space:nowrap;}
+
+.task{
+  display:flex;
+  align-items:flex-start;
+  gap:11px;
+  padding:12px 0;
+  border-top:1px solid #2c2c2c;
+}
+.task:first-of-type{border-top:none;}
+.task input[type="checkbox"]{
+  width:21px;
+  height:21px;
+  margin-top:3px;
+  accent-color:#34c759;
+  flex-shrink:0;
+}
+.task-label{font-size:15px;line-height:1.45;}
+.task-desc{font-size:12px;color:#aaaaaa;margin-top:4px;line-height:1.45;}
+.task.done .task-label{text-decoration:line-through;color:#888888;}
+
+.btns{display:flex;flex-wrap:wrap;gap:9px;}
+.btn{
+  border:1px solid #333333;
+  border-radius:12px;
+  padding:11px 14px;
+  font-size:14px;
+  font-weight:600;
+  background:#1e1e1e;
+  color:#ffffff;
+  cursor:pointer;
+}
+.btn-sm{
+  padding:6px 10px;
+  font-size:12px;
+  border-radius:8px;
+  margin:3px 2px;
+}
+.primary{background:#5b7cf7;border-color:#5b7cf7;}
+.danger{color:#ff455a;}
+
+.edit-input{
+  width:100%;
+  background:#2a2a2a;
+  border:1px solid #333333;
+  color:#fff;
+  border-radius:8px;
+  padding:8px 10px;
+  margin:4px 0;
+  font-size:14px;
+}
+.edit-bar{margin:14px 0;display:flex;gap:8px;flex-wrap:wrap;}
+.section-title{font-size:18px;font-weight:bold;margin-top:24px;margin-bottom:8px;}
+
+footer{text-align:center;color:#aaaaaa;font-size:12px;padding:20px 0 4px;}
+button:focus-visible,input:focus-visible{outline:2px solid #5b7cf7;outline-offset:2px;}
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div>
+      <div class="eyebrow">DAILY CHECKLIST</div>
+      <h1>每日打卡清单</h1>
+      <div class="date" id="today"></div>
+    </div>
+    <div style="font-size:28px" aria-hidden="true">🌙</div>
+  </div>
+
+  <div class="edit-bar">
+    <button class="btn primary" id="toggleEdit">开启编辑模式</button>
+  </div>
+
+  <section class="progress-card" aria-live="polite">
+    <div class="progress-row">
+      <div>
+        <div style="font-weight:700">今日完成进度</div>
+        <div class="small" id="tip">一步一步来，完成比完美重要。</div>
+      </div>
+      <div class="progress-num" id="count">0 / 0</div>
+    </div>
+    <div class="progress-line"><div class="progress-fill" id="bar"></div></div>
+    <div class="small" id="percent">0% 已完成</div>
+  </section>
+
+  <div id="list"></div>
+
+  <section class="actions">
+    <div class="btns">
+      <button class="btn primary" id="reset">重置今日清单</button>
+      <button class="btn" id="uncheck">全部取消勾选</button>
+      <button class="btn" id="export">导出打卡记录</button>
+    </div>
+    <p class="small" style="margin-top:12px">数据保存在本机浏览器；清除缓存会丢失编辑内容，请定期导出备份。</p>
+  </section>
+
+  <footer>为长期坚持而设计 · 记得留出休息时间</footer>
+</main>
+
+<script>
+const defaultFixedGroups = [
+  {title:"早晨｜快速打卡",time:"早餐后",tasks:[
+    {id:"goboy",label:"Go Boy 领取会员时长",desc:"打开Go‑Boy领取奖励"},
+    {id:"netease",label:"网易云背单词",desc:"优先复习旧词"}
+  ]},
+  {title:"学习｜核心任务",time:"按课表",tasks:[
+    {id:"cet6",label:"英语六级学习",desc:"听力/阅读/词汇选一项"},
+    {id:"oral",label:"口腔医学复习",desc:"复盘课堂重点"}
+  ]},
+  {title:"运动｜训练",time:"傍晚",tasks:[
+    {id:"run",label:"跑步 / 恢复训练",desc:"休息日可选择休息"},
+    {id:"walk",label:"日常步行打卡",desc:"完成每日步行量"}
+  ]},
+  {title:"睡前｜收尾",time:"22:30前后",tasks:[
+    {id:"prep",label:"准备次日课程用品",desc:"检查课表"},
+    {id:"sleep",label:"尽量23点前睡觉",desc:"睡眠优先"}
+  ]}
+];
+
+const STORAGE = "dark‑check‑v1";
+const HISTORY = "dark‑check‑history‑v1";
+const EDIT_KEY = "dark‑check‑edit‑v1";
+
+let isEditMode = false;
+let editData = {
+  fixedGroups: JSON.parse(JSON.stringify(defaultFixedGroups)),
+  homeworkGroups: []
+};
+
+try {
+  const raw = localStorage.getItem(EDIT_KEY);
+  if(raw) {
+    const d = JSON.parse(raw);
+    if(d.fixedGroups) editData.fixedGroups = d.fixedGroups;
+    if(d.homeworkGroups) editData.homeworkGroups = d.homeworkGroups;
+  }
+}catch(e){}
+
+function saveEditData(){
+  localStorage.setItem(EDIT_KEY, JSON.stringify(editData));
+}
+
+function getAllGroups(){
+  return [...editData.fixedGroups, ...editData.homeworkGroups];
+}
+
+const todayKey = function(){
+  const d = new Date();
+  return "" + d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+};
+
+let state = { date: todayKey(), checks:{} };
+
+function loadState(){
+  try{
+    const s = JSON.parse(localStorage.getItem(STORAGE)||"null");
+    if(s && s.date === todayKey()) state = s;
+    else state = {date:todayKey(), checks:{}};
+  }catch(e){
+    state = {date:todayKey(), checks:{}};
+  }
+  saveState();
+}
+function saveState(){ localStorage.setItem(STORAGE, JSON.stringify(state)); }
+function saveHistory(){
+  try{
+    const h = JSON.parse(localStorage.getItem(HISTORY)||"{}");
+    h[state.date] = Object.assign({}, state.checks);
+    localStorage.setItem(HISTORY, JSON.stringify(h));
+  }catch(e){}
+}
+
+const act = {
+  fixTitle:function(idx,val){editData.fixedGroups[idx].title=val;saveEditData();render();},
+  fixTime:function(idx,val){editData.fixedGroups[idx].time=val;saveEditData();render();},
+  fixDelGroup:function(idx){editData.fixedGroups.splice(idx,1);saveEditData();render();},
+  fixAddGroup:function(){
+    const id = "fg_"+Date.now();
+    editData.fixedGroups.push({title:"新固定分组",time:"",tasks:[{id:id,label:"新任务",desc:""}]});
+    saveEditData();render();
+  },
+  fixTaskLabel:function(gidx,tidx,val){editData.fixedGroups[gidx].tasks[tidx].label=val;saveEditData();render();},
+  fixTaskDesc:function(gidx,tidx,val){editData.fixedGroups[gidx].tasks[tidx].desc=val;saveEditData();render();},
+  fixDelTask:function(gidx,tidx){editData.fixedGroups[gidx].tasks.splice(tidx,1);saveEditData();render();},
+  fixAddTask:function(gidx){
+    const id = "ft_"+Date.now();
+    editData.fixedGroups[gidx].tasks.push({id:id,label:"新任务",desc:""});
+    saveEditData();render();
+  },
+
+  hwTitle:function(idx,val){editData.homeworkGroups[idx].title=val;saveEditData();render();},
+  hwTime:function(idx,val){editData.homeworkGroups[idx].time=val;saveEditData();render();},
+  hwDelGroup:function(idx){editData.homeworkGroups.splice(idx,1);saveEditData();render();},
+  hwAddGroup:function(){
+    const id = "hg_"+Date.now();
+    editData.homeworkGroups.push({title:"新作业分组",time:"",tasks:[{id:id,label:"作业任务",desc:""}]});
+    saveEditData();render();
+  },
+  hwTaskLabel:function(gidx,tidx,val){editData.homeworkGroups[gidx].tasks[tidx].label=val;saveEditData();render();},
+  hwTaskDesc:function(gidx,tidx,val){editData.homeworkGroups[gidx].tasks[tidx].desc=val;saveEditData();render();},
+  hwDelTask:function(gidx,tidx){editData.homeworkGroups[gidx].tasks.splice(tidx,1);saveEditData();render();},
+  hwAddTask:function(gidx){
+    const id = "ht_"+Date.now();
+    editData.homeworkGroups[gidx].tasks.push({id:id,label:"作业任务",desc:""});
+    saveEditData();render();
+  }
+};
+
+function render(){
+  const now = new Date();
+  document.getElementById("today").textContent = "" + now.getFullYear() + "年" + (now.getMonth()+1) + "月" + now.getDate() + "日";
+  const root = document.getElementById("list");
+  root.innerHTML = "";
+
+  {
+    const st = document.createElement("div");
+    st.className = "section-title";
+    st.textContent = "🔹 固定模块（日常任务）";
+    root.appendChild(st);
+
+    editData.fixedGroups.forEach(function(g,gi){
+      const sec = document.createElement("section");
+      sec.className = "group";
+      const gh = document.createElement("div");
+      gh.className = "group-head";
+
+      if(isEditMode){
+        const wrapDiv = document.createElement("div");
+        wrapDiv.style.flex = "1";
+        const iTitle = document.createElement("input");
+        iTitle.className = "edit-input";
+        iTitle.value = g.title;
+        iTitle.addEventListener("change",function(e){act.fixTitle(gi,e.target.value);});
+        const iTime = document.createElement("input");
+        iTime.className = "edit-input";
+        iTime.value = g.time;
+        iTime.addEventListener("change",function(e){act.fixTime(gi,e.target.value);});
+        wrapDiv.append(iTitle,iTime);
+
+        const btnDelG = document.createElement("button");
+        btnDelG.className = "btn btn-sm danger";
+        btnDelG.textContent = "删除分组";
+        btnDelG.onclick = function(){act.fixDelGroup(gi);};
+        gh.append(wrapDiv, btnDelG);
+      }else{
+        const h2 = document.createElement("h2"); h2.textContent = g.title;
+        const spanT = document.createElement("span"); spanT.className="time"; spanT.textContent = g.time;
+        gh.append(h2,spanT);
+      }
+      sec.appendChild(gh);
+
+      g.tasks.forEach(function(t,ti){
+        if(isEditMode){
+          const tWrap = document.createElement("div");
+          tWrap.className = "task";
+          const inner = document.createElement("div"); inner.style.flex="1";
+          const ilab = document.createElement("input"); ilab.className="edit-input"; ilab.value=t.label;
+          ilab.addEventListener("change",function(e){act.fixTaskLabel(gi,ti,e.target.value);});
+          const idesc = document.createElement("input"); idesc.className="edit-input"; idesc.value=t.desc;
+          idesc.addEventListener("change",function(e){act.fixTaskDesc(gi,ti,e.target.value);});
+          const btndel = document.createElement("button"); btndel.className="btn btn-sm danger"; btndel.textContent="删除任务";
+          btndel.onclick = function(){act.fixDelTask(gi,ti);};
+          inner.append(ilab,idesc,btndel);
+          tWrap.appendChild(inner);
+          sec.appendChild(tWrap);
+        }else{
+          const labEl = document.createElement("label");
+          labEl.className = "task" + (state.checks[t.id]?" done":"");
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.checked = !!state.checks[t.id];
+          cb.addEventListener("change",function(){
+            state.checks[t.id] = cb.checked;
+            saveState(); saveHistory(); render();
+          });
+          const txtWrap = document.createElement("div"); txtWrap.className="task-text";
+          const tLab = document.createElement("div"); tLab.className="task-label"; tLab.textContent = t.label;
+          const tDes = document.createElement("div"); tDes.className="task-desc"; tDes.textContent = t.desc;
+          txtWrap.append(tLab,tDes);
+          labEl.append(cb,txtWrap);
+          sec.appendChild(labEl);
+        }
+      });
+
+      if(isEditMode){
+        const addTBtn = document.createElement("button");
+        addTBtn.className = "btn btn-sm";
+        addTBtn.textContent = "➕新增任务";
+        addTBtn.onclick = function(){act.fixAddTask(gi);};
+        sec.appendChild(addTBtn);
+      }
+      root.appendChild(sec);
+    });
+
+    if(isEditMode){
+      const addGbtn = document.createElement("button");
+      addGbtn.className = "btn primary btn-sm";
+      addGbtn.textContent = "➕新增固定分组";
+      addGbtn.onclick = function(){act.fixAddGroup();};
+      root.appendChild(addGbtn);
+    }
+  }
+
+  {
+    const st = document.createElement("div");
+    st.className = "section-title";
+    st.textContent = "🔸 作业模块（每日临时任务）";
+    root.appendChild(st);
+
+    editData.homeworkGroups.forEach(function(g,gi){
+      const sec = document.createElement("section");
+      sec.className = "group";
+      const gh = document.createElement("div");
+      gh.className = "group-head";
+
+      if(isEditMode){
+        const wrapDiv = document.createElement("div");
+        wrapDiv.style.flex = "1";
+        const iTitle = document.createElement("input");
+        iTitle.className = "edit-input";
+        iTitle.value = g.title;
+        iTitle.addEventListener("change",function(e){act.hwTitle(gi,e.target.value);});
+        const iTime = document.createElement("input");
+        iTime.className = "edit-input";
+        iTime.value = g.time;
+        iTime.addEventListener("change",function(e){act.hwTime(gi,e.target.value);});
+        wrapDiv.append(iTitle,iTime);
+
+        const btnDelG = document.createElement("button");
+        btnDelG.className = "btn btn-sm danger";
+        btnDelG.textContent = "删除分组";
+        btnDelG.onclick = function(){act.hwDelGroup(gi);};
+        gh.append(wrapDiv, btnDelG);
+      }else{
+        const h2 = document.createElement("h2"); h2.textContent = g.title;
+        const spanT = document.createElement("span"); spanT.className="time"; spanT.textContent = g.time;
+        gh.append(h2,spanT);
+      }
+      sec.appendChild(gh);
+
+      g.tasks.forEach(function(t,ti){
+        if(isEditMode){
+          const tWrap = document.createElement("div");
+          tWrap.className = "task";
+          const inner = document.createElement("div"); inner.style.flex="1";
+          const ilab = document.createElement("input"); ilab.className="edit-input"; ilab.value=t.label;
+          ilab.addEventListener("change",function(e){act.hwTaskLabel(gi,ti,e.target.value);});
+          const idesc = document.createElement("input"); idesc.className="edit-input"; idesc.value=t.desc;
+          idesc.addEventListener("change",function(e){act.hwTaskDesc(gi,ti,e.target.value);});
+          const btndel = document.createElement("button"); btndel.className="btn btn-sm danger"; btndel.textContent="删除任务";
+          btndel.onclick = function(){act.hwDelTask(gi,ti);};
+          inner.append(ilab,idesc,btndel);
+          tWrap.appendChild(inner);
+          sec.appendChild(tWrap);
+        }else{
+          const labEl = document.createElement("label");
+          labEl.className = "task" + (state.checks[t.id]?" done":"");
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.checked = !!state.checks[t.id];
+          cb.addEventListener("change",function(){
+            state.checks[t.id] = cb.checked;
+            saveState(); saveHistory(); render();
+          });
+          const txtWrap = document.createElement("div"); txtWrap.className="task-text";
+          const tLab = document.createElement("div"); tLab.className="task-label"; tLab.textContent = t.label;
+          const tDes = document.createElement("div"); tDes.className="task-desc"; tDes.textContent = t.desc;
+          txtWrap.append(tLab,tDes);
+          labEl.append(cb,txtWrap);
+          sec.appendChild(labEl);
+        }
+      });
+
+      if(isEditMode){
+        const addTBtn = document.createElement("button");
+        addTBtn.className = "btn btn-sm";
+        addTBtn.textContent = "➕新增任务";
+        addTBtn.onclick = function(){act.hwAddTask(gi);};
+        sec.appendChild(addTBtn);
+      }
+      root.appendChild(sec);
+    });
+
+    if(isEditMode){
+      const addGbtn = document.createElement("button");
+      addGbtn.className = "btn primary btn-sm";
+      addGbtn.textContent = "➕新增作业分组";
+      addGbtn.onclick = function(){act.hwAddGroup();};
+      root.appendChild(addGbtn);
+    }
+  }
+
+  updateProgress();
+}
+
+function updateProgress(){
+  const all = getAllGroups().flatMap(function(g){return g.tasks;});
+  const done = all.filter(function(x){return state.checks[x.id];}).length;
+  const total = all.length;
+  const pct = total>0 ? Math.round(done/total*100) : 0;
+  document.getElementById("count").textContent = "" + done + " / " + total;
+  document.getElementById("bar").style.width = pct+"%";
+  document.getElementById("percent").textContent = "" + pct + "% 已完成";
+  const tip = document.getElementById("tip");
+  if(pct===100) tip.textContent = "全部完成，很棒！";
+  else if(done===0) tip.textContent = "一步一步来，完成比完美重要。";
+  else tip.textContent = "继续保持，已完成 "+done+" 项。";
+}
+
+document.getElementById("toggleEdit").addEventListener("click",function(){
+  isEditMode = !isEditMode;
+  this.textContent = isEditMode ? "关闭编辑模式" : "开启编辑模式";
+  render();
+});
+
+document.getElementById("reset").addEventListener("click",function(){
+  if(confirm("确定重置今日全部勾选？历史记录会保留。")){
+    state.checks = {}; saveState(); saveHistory(); render();
+  }
+});
+
+document.getElementById("uncheck").addEventListener("click",function(){
+  state.checks = {}; saveState(); saveHistory(); render();
+});
+
+document.getElementById("export").addEventListener("click",function(){
+  saveHistory();
+  const h = JSON.parse(localStorage.getItem(HISTORY)||"{}");
+  h[state.date] = Object.assign({}, state.checks);
+  const blob = new Blob([JSON.stringify(h,null,2)],{type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "打卡历史.json";
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+loadState();
+render();
+</script>
+</body>
+</html>
